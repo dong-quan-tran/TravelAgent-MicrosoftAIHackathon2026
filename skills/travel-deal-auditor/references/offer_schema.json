@@ -1,0 +1,40 @@
+{
+  "description": "Example schema for evidence-aware provider integration; not a valid booking result.",
+  "example_offer": {
+    "offer_id": "EXAMPLE-UNVERIFIED-001",
+    "kind": "flight",
+    "data_status": "live_search_unverified",
+    "provider": "REPLACE_WITH_REAL_PROVIDER",
+    "source_url": null,
+    "booking_url": null,
+    "observed_utc": null,
+    "currency": "USD",
+    "party_size": 1,
+    "product_identity": {
+      "origin": "DFW",
+      "destination": "JFK",
+      "outbound_date": "2027-03-11",
+      "return_date": "2027-03-15",
+      "fare_type": null,
+      "checked_bags": 1,
+      "notes": "VERIFY EXACT ROUTE, CLASS, FLIGHTS, INVENTORY, CABIN"
+    },
+    "price_breakdown": {
+      "base_total": null,
+      "mandatory_taxes_total": null,
+      "baggage_total": null,
+      "mandatory_other_fees_total": null,
+      "known_all_in_total": null,
+      "unknown_fee_categories": ["baggage", "fare restrictions"]
+    },
+    "award": {
+      "inventory_verified": false,
+      "program": null,
+      "points_required": null,
+      "cash_copay_usd": null,
+      "transfer_eligibility_verified": false
+    },
+    "checkout_verified": false,
+    "evidence_notes": "Template only; fill from authorized provider."
+  }
+}

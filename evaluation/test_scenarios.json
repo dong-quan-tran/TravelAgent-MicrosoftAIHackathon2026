@@ -1,0 +1,9 @@
+{
+  "_notice": "Scenarios only; NOT authoritative or winning price quotations. All starter app offers are fictional.",
+  "cases": [
+    {"id":"NYC","title":"Cheapest Domestic Trip","origin":"DALLAS","destination":"NYC","depart_date":"2027-03-11","return_date":"2027-03-15","travelers":1,"carry_on":true,"checked_bag":false,"notes":"Check DAL/DFW, JFK/LGA/EWR, comparable fare and full hotel stay; optionally flex ±2 days"},
+    {"id":"TOKYO","title":"International Points Strategy","origin":"DALLAS","destination":"TOKYO","depart_date":"2027-04-23","return_date":"2027-04-30","travelers":2,"carry_on":true,"checked_bag":true,"notes":"1 checked bag per person; real card balances must be confirmed; award inventory not assumed"},
+    {"id":"LAS_VEGAS","title":"Hotel Mandatory Fee Challenge","origin":"DALLAS","destination":"LAS VEGAS","depart_date":"2027-05-20","return_date":"2027-05-23","travelers":2,"carry_on":true,"checked_bag":false,"notes":"3-night comparison with resort fees, room identity and cancellation rules"},
+    {"id":"JUDGE_SURPRISE","title":"Unannounced Live Test","origin":"<judge picks>","destination":"<judge picks>","depart_date":"<judge picks>","return_date":"<judge picks>","travelers":1,"carry_on":true,"checked_bag":false,"notes":"Judge supplies new inputs at demo. Team must show genuine dynamic behavior or declare provider limitations."}
+  ]
+}
