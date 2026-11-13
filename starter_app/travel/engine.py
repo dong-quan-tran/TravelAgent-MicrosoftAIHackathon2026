@@ -110,6 +110,30 @@ def demo_offers(query: dict[str, Any]) -> tuple[list[dict], list[dict]]:
     return flights, hotels
 
 
+def price_evidence(offer: dict, query: dict, hotel: bool = False) -> dict:
+    """Keep missing charges distinct from a confirmed zero-dollar charge."""
+    unknown = list(offer.get("unknown_fee_categories") or [])
+    fields = [("stay_rate_usd", "stay rate"), ("mandatory_fees_usd", "hotel mandatory fees")] if hotel else [
+        ("base_per_traveler_usd", "base fare"), ("mandatory_per_traveler_usd", "flight mandatory fees")]
+    if not hotel:
+        for flag, included, amount, label in (
+            ("carry_on", "carry_on_included", "carry_on_per_traveler_usd", "carry-on fees"),
+            ("checked_bag", "checked_bag_included", "checked_bag_per_traveler_usd", "checked bag fees"),
+        ):
+            if query[flag] and offer.get(included) is not True:
+                fields.append((amount, label))
+                if offer.get("fees_incomplete") and offer.get(included) is None:
+                    unknown.append(label)
+    for field, label in fields:
+        if isinstance(offer.get(field), bool) or number(offer.get(field), -1) < 0:
+            unknown.append(label)
+    if offer.get("fees_incomplete") or offer.get("price_complete") is False:
+        unknown.append("unconfirmed mandatory charges")
+    unknown = list(dict.fromkeys(unknown))
+    return {"price_complete": not unknown, "unknown_fee_categories": unknown,
+            "fees_incomplete": bool(unknown)}
+
+
 def price_flight(offer: dict[str, Any], query: dict[str, Any]) -> dict[str, Any]:
     travelers = query["travelers"]
     per_person = number(offer.get("base_per_traveler_usd")) + number(offer.get("mandatory_per_traveler_usd"))
@@ -121,6 +145,9 @@ def price_flight(offer: dict[str, Any], query: dict[str, Any]) -> dict[str, Any]
     points = int(number(offer.get("award_points_per_traveler", 0)) * travelers)
     award_fees = round(number(offer.get("award_taxes_per_traveler_usd")) * travelers, 2)
     enriched = dict(offer, total_cash_usd=total, points_required=points, award_fees_usd=award_fees)
+    enriched.update(price_evidence(offer, query))
+    enriched["award_price_complete"] = bool(points and enriched["price_complete"] and
+        number(offer.get("award_taxes_per_traveler_usd"), -1) >= 0)
     enriched["reward_points_earned"] = int(total * query["card_multiplier"])
     enriched["cash_after_rewards_estimate_usd"] = round(total - enriched["reward_points_earned"] * query["point_value_cents"] / 100, 2)
     enriched["award_economic_cost_usd"] = round(award_fees + points * query["point_value_cents"] / 100, 2) if points else None
@@ -133,6 +160,9 @@ def price_hotel(offer: dict[str, Any], query: dict[str, Any]) -> dict[str, Any]:
     points = int(number(offer.get("award_points_total", 0)))
     fees = round(number(offer.get("award_taxes_usd")), 2)
     enriched = dict(offer, total_cash_usd=total, points_required=points, award_fees_usd=fees)
+    enriched.update(price_evidence(offer, query, hotel=True))
+    enriched["award_price_complete"] = bool(points and enriched["price_complete"] and
+        number(offer.get("award_taxes_usd"), -1) >= 0)
     enriched["reward_points_earned"] = int(total * query["card_multiplier"])
     enriched["cash_after_rewards_estimate_usd"] = round(total - enriched["reward_points_earned"] * query["point_value_cents"] / 100, 2)
     enriched["award_economic_cost_usd"] = round(fees + points * query["point_value_cents"] / 100, 2) if points else None
@@ -147,25 +177,44 @@ def compare(query: dict[str, Any], flight_raw: list[dict], hotel_raw: list[dict]
     total = round((lowest_flight["total_cash_usd"] if lowest_flight else 0) +
                   (lowest_hotel["total_cash_usd"] if lowest_hotel else 0), 2)
     best_award = None
+    complete = bool(lowest_flight and lowest_hotel and lowest_flight["price_complete"] and lowest_hotel["price_complete"])
     for kind, entries in (("flight", flights), ("hotel", hotels)):
+        baseline = entries[0] if entries else None
+        other = lowest_hotel if kind == "flight" else lowest_flight
         for offer in entries:
-            if offer["award_affordable"]:
-                savings = round(offer["total_cash_usd"] - offer["award_economic_cost_usd"], 2)
+            if complete and offer["award_affordable"] and offer["award_price_complete"]:
+                savings = round(baseline["total_cash_usd"] - offer["award_economic_cost_usd"], 2)
                 candidate = {"kind": kind, "offer_id": offer["id"], "points": offer["points_required"],
                              "fees_usd": offer["award_fees_usd"], "economic_savings_usd": savings,
+                             "cash_alternative_offer_id": baseline["id"],
+                             "cash_alternative_usd": baseline["total_cash_usd"],
+                             "award_economic_cost_usd": offer["award_economic_cost_usd"],
+                             "trip_cash_outlay_usd": round(other["total_cash_usd"] + offer["award_fees_usd"], 2),
+                             "trip_economic_cost_usd": round(other["total_cash_usd"] + offer["award_economic_cost_usd"], 2),
+                             "scenario_only": True,
                              "award_program": offer.get("award_program")}
-                if best_award is None or savings > best_award["economic_savings_usd"]:
+                if savings > 0 and (best_award is None or savings > best_award["economic_savings_usd"]):
                     best_award = candidate
     recommendations = []
     if lowest_flight:
-        recommendations.append(f"Lowest modeled flight cost: ${lowest_flight['total_cash_usd']:,.2f} for {query['travelers']} traveler(s), including selected bag fees.")
+        label = "Lowest modeled flight cost" if lowest_flight["price_complete"] else "Lowest known flight estimate"
+        detail = "including modeled selected bag fees" if lowest_flight["price_complete"] else "required fees remain unknown"
+        recommendations.append(f"{label}: ${lowest_flight['total_cash_usd']:,.2f} for {query['travelers']} traveler(s); {detail}.")
     if lowest_hotel:
-        recommendations.append(f"Lowest modeled hotel cost: ${lowest_hotel['total_cash_usd']:,.2f} for the full stay, including modeled mandatory fees.")
+        label = "Lowest modeled hotel cost" if lowest_hotel["price_complete"] else "Lowest known hotel estimate"
+        detail = "including modeled mandatory fees" if lowest_hotel["price_complete"] else "required fees remain unknown"
+        recommendations.append(f"{label}: ${lowest_hotel['total_cash_usd']:,.2f} for the full stay; {detail}.")
     if best_award and best_award["economic_savings_usd"] > 0:
-        recommendations.append(f"Illustrative {best_award['kind']} award {best_award['offer_id']} could save an estimated ${best_award['economic_savings_usd']:,.2f} in economic value at your custom point valuation. Verify inventory and eligibility.")
+        recommendations.append(f"Scenario only: {best_award['kind']} award {best_award['offer_id']} uses {best_award['points']:,} points + ${best_award['fees_usd']:,.2f} cash fees. Its economic cost is ${best_award['award_economic_cost_usd']:,.2f}, versus ${best_award['cash_alternative_usd']:,.2f} for cash option {best_award['cash_alternative_offer_id']}. Estimated economic savings: ${best_award['economic_savings_usd']:,.2f}. With the other trip component paid in cash, trip cash outlay is ${best_award['trip_cash_outlay_usd']:,.2f} and economic cost is ${best_award['trip_economic_cost_usd']:,.2f}. Compare fare/room conditions; verify inventory and program eligibility. Earned points are excluded from this comparison.")
+    elif complete:
+        recommendations.append("No affordable award scenario beats the lowest modeled cash combination at your point valuation.")
     if not flights or not hotels:
         recommendations.append("Incomplete trip results: no flight or hotel match for part of this search. Do not describe the total as a complete trip quote.")
     all_warnings = list(warnings or [])
+    if flights and hotels and not complete:
+        all_warnings.append("Required fees are unknown. The known trip estimate is not a complete all-in price; award recommendations are withheld.")
+    if best_award:
+        all_warnings.append("Only one redemption is modeled. The entered balance is a scenario, not a verified program balance or proof of transfer eligibility. Fare and room conditions may differ.")
     if query["mode"] == "demo":
         all_warnings.insert(0, "DEMO MODE: all fares, hotels, carriers, points and rewards examples are fictional and cannot be booked.")
     else:
@@ -173,7 +222,9 @@ def compare(query: dict[str, Any], flight_raw: list[dict], hotel_raw: list[dict]
     return {"query": query, "flights": flights, "hotels": hotels,
             "summary": {"flight_offer_id": lowest_flight["id"] if lowest_flight else None,
                         "hotel_offer_id": lowest_hotel["id"] if lowest_hotel else None,
-                        "modeled_trip_cash_usd": total if flights and hotels else None,
+                        "price_complete": complete,
+                        "known_trip_cash_usd": total if flights and hotels else None,
+                        "modeled_trip_cash_usd": total if complete else None,
                         "best_illustrative_award": best_award,
                         "modeled_points_earned_if_cash": (lowest_flight["reward_points_earned"] if lowest_flight else 0) + (lowest_hotel["reward_points_earned"] if lowest_hotel else 0),
                         "recommendations": recommendations},
