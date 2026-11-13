@@ -3,6 +3,10 @@ const el = id => document.getElementById(id);
 const money = v => typeof v === 'number' && Number.isFinite(v)
   ? new Intl.NumberFormat('en-US', {style:'currency',currency:'USD'}).format(v) : 'Not available';
 const safe = value => String(value ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const completePrice = offer => offer.price_complete === true || (offer.price_complete !== false && offer.fees_incomplete === false);
+const bagLabel = (offer, included, fee) => offer[included] === true ? 'Included' :
+  offer[included] === false && typeof offer[fee] === 'number' ? `${money(offer[fee])} per traveler` : 'Unknown';
+let searchVersion = 0;
 const scenarios = {
   nyc: { origin:'DALLAS',destination:'NYC',depart_date:'2027-03-11',return_date:'2027-03-15',travelers:1 },
   tokyo:{origin:'DALLAS',destination:'TOKYO',depart_date:'2027-04-23',return_date:'2027-04-30',travelers:2},
@@ -32,37 +36,49 @@ function offerHtml(offer,index,isHotel,mode){
     `${offer.stops === 0?'Nonstop':`${offer.stops} stop(s)`} · ${offer.duration_minutes?Math.round(offer.duration_minutes/60*10)/10+' h':'Duration unknown'}`;
   const meta=isHotel?`Room: ${safe(offer.refundable===true?'Refundable listed':offer.refundable===false?'Nonrefundable listed':'Refundability unknown')}`:
     `${safe(offer.fare_label||'Fare not specified')}`;
-  const award=offer.points_required > 0?`<div class="award">${offer.award_affordable?'Potential demo redemption':'Not enough entered demo points'}: <strong>${offer.points_required.toLocaleString()} points + ${money(offer.award_fees_usd)}</strong><br>Economic cost at your custom valuation: ${money(offer.award_economic_cost_usd)}</div>`:'';
-  const timeLabel=offer.observed_utc?`Observed: ${safe(offer.observed_utc)}`:"Synthetic fixture • no live observation";
-  const completeness=offer.fees_incomplete?'Further fees may apply; NOT an all-in total':
-    `Estimated rewards on cash purchase: ${Number(offer.reward_points_earned||0).toLocaleString()} points`;
-  return `<article class="offer ${index===0?'offer-best':''}"><div class="offer-top"><div><h4>${safe(title)}</h4><div class="sourceline">${safe(offer.source)}</div></div><div class="cost">${money(offer.total_cash_usd)}<small>${isHotel?'full stay':'all travelers'}</small></div></div><div class="tags"><span class="tag fake">${mode==='demo'?'SYNTHETIC TEST PRICE':'UNVERIFIED LIVE SEARCH'}</span><span class="tag">${safe(details)}</span><span class="tag">${safe(offer.id)}</span></div><div class="sourceline">${meta}</div>${award}<div class="offer-foot"><span>${safe(completeness)}</span><span>${safe(timeLabel)} · ${offer.checkout_verified?'Checkout verified':'Not checkout verified'}</span></div></article>`;
+  const award=offer.points_required > 0?`<div class="award">${offer.award_affordable?'Points scenario — availability unverified':'Not enough entered points'}: <strong>${offer.points_required.toLocaleString()} points + ${offer.award_price_complete === false?'unknown cash fees':money(offer.award_fees_usd)}</strong><br>Economic cost at your valuation: ${offer.award_price_complete === false?'Unknown':money(offer.award_economic_cost_usd)}</div>`:'';
+  const timeLabel=offer.observed_utc?`Observed: ${safe(offer.observed_utc)}`:mode==='demo'?"Synthetic fixture • no live observation":"Observation time unknown";
+  const completeness=!completePrice(offer)?`Unknown: ${(offer.unknown_fee_categories || ['required fees']).join(', ')}. Known amount only.`:
+    `Modeled fees included. Estimated cash rewards: ${Number(offer.reward_points_earned||0).toLocaleString()} points`;
+  const dates=isHotel?`${offer.checkin || ''} → ${offer.checkout || ''}`:`${offer.depart_date || ''} → ${offer.return_date || ''}`;
+  const bags=isHotel?'':`<p class="offer-detail">Carry-on: ${safe(bagLabel(offer,'carry_on_included','carry_on_per_traveler_usd'))} · Checked bag: ${safe(bagLabel(offer,'checked_bag_included','checked_bag_per_traveler_usd'))}</p>`;
+  return `<article class="offer ${index===0?'offer-best':''}"><div class="offer-top"><div><h4>${safe(title)}</h4><div class="sourceline">${safe(offer.source)}</div></div><div class="cost">${money(offer.total_cash_usd)}<small>${completePrice(offer)?'modeled total':'known estimate'} · ${isHotel?'full stay':'all travelers'}</small></div></div><div class="tags"><span class="tag fake">${mode==='demo'?'SYNTHETIC TEST PRICE':'UNVERIFIED LIVE SEARCH'}</span><span class="tag">${safe(details)}</span><span class="tag">${safe(offer.id)}</span></div><div class="sourceline">${safe(dates)}<br>${meta}</div>${bags}${award}<div class="offer-foot"><span>${safe(completeness)}</span><span>${safe(timeLabel)} · ${offer.checkout_verified?'Checkout verified':'Not checkout verified'}</span></div></article>`;
 }
 function render(data){
   const mode=data.query.mode;
   el('warnings').innerHTML=(data.warnings||[]).map((w,i)=>`<div class="warn">${i===0?'<strong>Important:</strong> ':''}${safe(w)}</div>`).join('');
   const summary=data.summary;
   const hasTrip=typeof summary.modeled_trip_cash_usd==='number';
-  el('summary').innerHTML=`<div class="trip-summary"><div><small>${mode==='demo'?'FICTIONAL TEST TOTAL':'PRELIMINARY SEARCH ESTIMATE'}</small><strong>${hasTrip?money(summary.modeled_trip_cash_usd):'Incomplete trip'}</strong><p>${hasTrip?'Lowest modeled cash flight + hotel • USD':'One or both parts of the trip are missing'}</p></div><div class="summary-note"><small>ILLUSTRATIVE CARD REWARDS</small><strong>${Number(summary.modeled_points_earned_if_cash||0).toLocaleString()} pts</strong><p>At ${safe(data.query.card_multiplier)} points / $1 on eligible spending; actual card rules vary.</p></div></div>`;
+  const hasKnown=typeof summary.known_trip_cash_usd==='number';
+  const totalLabel=hasTrip?money(summary.modeled_trip_cash_usd):hasKnown?money(summary.known_trip_cash_usd):'Incomplete trip';
+  const totalNote=hasTrip?'Lowest modeled cash flight + hotel • USD':hasKnown?'Known flight + hotel estimate. Required fees are unknown.':'One or both parts of the trip are missing';
+  el('summary').innerHTML=`<div class="trip-summary"><div><small>${mode==='demo'?'FICTIONAL TEST TOTAL':'UNVERIFIED LIVE ESTIMATE'}</small><strong>${totalLabel}</strong><p>${safe(totalNote)}</p><p>${safe(data.query.origin)} → ${safe(data.query.destination)} · ${safe(data.query.travelers)} traveler(s)</p></div><div class="summary-note"><small>ILLUSTRATIVE CARD REWARDS</small><strong>${Number(summary.modeled_points_earned_if_cash||0).toLocaleString()} pts</strong><p>Assumed ${safe(data.query.card_multiplier)} points / $1. Estimated value: ${money(Number(summary.modeled_points_earned_if_cash||0)*data.query.point_value_cents/100)}. This is not a cash discount.</p></div></div>`;
   el('flightCount').textContent=`${data.flights.length} result(s)`;
   el('hotelCount').textContent=`${data.hotels.length} result(s)`;
   el('flights').innerHTML=data.flights.length?data.flights.map((o,i)=>offerHtml(o,i,false,mode)).join(''):'<div class="empty">No matching flights. Demo fixtures cover the three scenario buttons; try a sample or connect live search.</div>';
   el('hotels').innerHTML=data.hotels.length?data.hotels.map((o,i)=>offerHtml(o,i,true,mode)).join(''):'<div class="empty">No matching hotels. Demo fixtures cover the three scenario buttons; try a sample or connect live search.</div>';
-  el('recommendations').innerHTML=`<div class="reco-box"><h3>Agent-style recommendations</h3>${summary.recommendations.map(s=>`<p>${safe(s)}</p>`).join('') || '<p>No recommendation available. Improve source coverage and rerun.</p>'}<p><strong>Next step:</strong> Students must improve verification and use actual accessible providers. These are not bookable results.</p></div>`;
+  const a=summary.best_illustrative_award;
+  const comparison=a?`<div class="payment-comparison"><div><small>PAY CASH</small><strong>${money(summary.modeled_trip_cash_usd)}</strong><p>Flight + hotel cash outlay</p></div><div><small>ONE AWARD + CASH</small><strong>${money(a.trip_cash_outlay_usd)}</strong><p>Plus ${Number(a.points).toLocaleString()} points · Economic cost: ${money(a.trip_economic_cost_usd)}</p></div></div>`:'';
+  el('recommendations').innerHTML=`<div class="reco-box"><h3>Your cash-versus-points comparison</h3>${comparison}${summary.recommendations.map(s=>`<p>${safe(s)}</p>`).join('') || '<p>No recommendation available. Try another search.</p>'}<p><strong>Before booking:</strong> Verify exact flights, room conditions, required fees, and award availability with the provider.</p></div>`;
 }
 async function doSearch(){
+  const version=++searchVersion;
   const button=el('searchButton');button.disabled=true;
+  el('results').setAttribute('aria-busy','true');
+  for(const id of ['summary','flights','hotels','recommendations','warnings','flightCount','hotelCount'])el(id).innerHTML='';
   el('status').textContent='Searching and comparing. Live API calls may take longer…';
   try{
     const response=await fetch('/api/search',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(getRequest())});
     const payload=await response.json();
+    if(version!==searchVersion)return;
     if(!response.ok)throw new Error(payload.error||'Search failed');
     render(payload);
     el('status').textContent=`Search complete • ${payload.query.mode==='demo'?'fictional data':'preliminary live listing estimates'} • prices in USD`;
   }catch(error){
+    if(version!==searchVersion)return;
     el('status').textContent='Error: '+error.message;
     el('warnings').innerHTML='<div class="warn">Check your inputs or live API configuration. See README.md.</div>';
     el('summary').innerHTML='';el('flights').innerHTML='';el('hotels').innerHTML='';el('recommendations').innerHTML='';
-  }finally{button.disabled=false;}
+  }finally{if(version===searchVersion){button.disabled=false;el('results').setAttribute('aria-busy','false');}}
 }
 doSearch();
