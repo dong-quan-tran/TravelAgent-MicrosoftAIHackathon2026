@@ -17,6 +17,21 @@ class EngineTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate({**BASE, "return_date": "garbage"})
 
+    def test_losing_award_remains_available_for_comparison(self):
+        q = validate({**BASE, "point_value_cents": 2})
+        f, h = demo_offers(q)
+        summary = compare(q, f, h)["summary"]
+        self.assertIsNone(summary["best_illustrative_award"])
+        candidate = summary["comparison_illustrative_award"]
+        self.assertIsNotNone(candidate)
+        self.assertLess(candidate["economic_savings_usd"], 0)
+        self.assertGreater(candidate["trip_economic_cost_usd"], summary["modeled_trip_cash_usd"])
+
+    def test_comparison_award_still_respects_balance(self):
+        q = validate({**BASE, "award_points_balance": 0})
+        f, h = demo_offers(q)
+        self.assertIsNone(compare(q, f, h)["summary"]["comparison_illustrative_award"])
+
     def test_unknown_fees_do_not_produce_complete_trip(self):
         q = validate(BASE)
         f, h = demo_offers(q)

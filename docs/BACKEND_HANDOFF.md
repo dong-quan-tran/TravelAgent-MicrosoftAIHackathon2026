@@ -15,6 +15,8 @@ Frontend now distinguishes unknown fees from missing results. When the known tot
 
 ## Awards
 
+The UI always shows both payment boxes. `comparison_illustrative_award` returns the best eligible scenario even when it loses to cash or ties. `best_illustrative_award` remains null unless points win. If there is no eligible scenario, the points box explains why comparison is unavailable. Both fields respect balance and complete-fee checks.
+
 `best_illustrative_award` is null unless one affordable, fully modeled award beats the lowest known cash combination with complete fees. Savings compare against the cheapest cash option in that category, rather than the award offer's own cash price.
 
 The candidate retains existing fields and adds `cash_alternative_offer_id`, `cash_alternative_usd`, `award_economic_cost_usd`, `trip_cash_outlay_usd`, `trip_economic_cost_usd`, and `scenario_only`.

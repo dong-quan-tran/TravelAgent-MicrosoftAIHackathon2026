@@ -177,6 +177,7 @@ def compare(query: dict[str, Any], flight_raw: list[dict], hotel_raw: list[dict]
     total = round((lowest_flight["total_cash_usd"] if lowest_flight else 0) +
                   (lowest_hotel["total_cash_usd"] if lowest_hotel else 0), 2)
     best_award = None
+    comparison_award = None
     complete = bool(lowest_flight and lowest_hotel and lowest_flight["price_complete"] and lowest_hotel["price_complete"])
     for kind, entries in (("flight", flights), ("hotel", hotels)):
         baseline = entries[0] if entries else None
@@ -193,8 +194,10 @@ def compare(query: dict[str, Any], flight_raw: list[dict], hotel_raw: list[dict]
                              "trip_economic_cost_usd": round(other["total_cash_usd"] + offer["award_economic_cost_usd"], 2),
                              "scenario_only": True,
                              "award_program": offer.get("award_program")}
-                if savings > 0 and (best_award is None or savings > best_award["economic_savings_usd"]):
-                    best_award = candidate
+                if comparison_award is None or savings > comparison_award["economic_savings_usd"]:
+                    comparison_award = candidate
+    if comparison_award and comparison_award["economic_savings_usd"] > 0:
+        best_award = comparison_award
     recommendations = []
     if lowest_flight:
         label = "Lowest modeled flight cost" if lowest_flight["price_complete"] else "Lowest known flight estimate"
@@ -226,6 +229,7 @@ def compare(query: dict[str, Any], flight_raw: list[dict], hotel_raw: list[dict]
                         "known_trip_cash_usd": total if flights and hotels else None,
                         "modeled_trip_cash_usd": total if complete else None,
                         "best_illustrative_award": best_award,
+                        "comparison_illustrative_award": comparison_award,
                         "modeled_points_earned_if_cash": (lowest_flight["reward_points_earned"] if lowest_flight else 0) + (lowest_hotel["reward_points_earned"] if lowest_hotel else 0),
                         "recommendations": recommendations},
             "warnings": all_warnings}
