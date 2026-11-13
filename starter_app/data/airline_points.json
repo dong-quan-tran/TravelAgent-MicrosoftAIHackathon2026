@@ -1,0 +1,531 @@
+{
+  "checked_on": "2026-11-13",
+  "notice": "Points are ESTIMATES: cash fare ÷ a published average value per point. Each leg uses whichever program reachable from the card needs the fewest card points: the airline's own program or an alliance partner (e.g. American flights via British Airways or Iberia Avios). Real award prices vary by route and date, and partner awards usually follow their own charts. Transfer ratios come from a secondary source and exclude transfer bonuses; confirm on your card's transfer page before moving points (transfers are usually irreversible).",
+  "valuation_source": {
+    "name": "The Points Guy monthly valuations, November 2026",
+    "url": "https://thepointsguy.com/guide/monthly-valuations/",
+    "published": "2026-11-02"
+  },
+  "programs": {
+    "united": {
+      "name": "United MileagePlus",
+      "short": "United",
+      "cents_per_point": 1.2
+    },
+    "delta": {
+      "name": "Delta SkyMiles",
+      "short": "Delta",
+      "cents_per_point": 1.2
+    },
+    "southwest": {
+      "name": "Southwest Rapid Rewards",
+      "short": "Southwest",
+      "cents_per_point": 1.25
+    },
+    "jetblue": {
+      "name": "JetBlue TrueBlue",
+      "short": "JetBlue",
+      "cents_per_point": 1.35
+    },
+    "aeroplan": {
+      "name": "Air Canada Aeroplan",
+      "short": "Aeroplan",
+      "cents_per_point": 1.45
+    },
+    "flying_blue": {
+      "name": "Air France-KLM Flying Blue",
+      "short": "Flying Blue",
+      "cents_per_point": 1.45
+    },
+    "british_airways": {
+      "name": "British Airways Club (Avios)",
+      "short": "BA Avios",
+      "cents_per_point": 1.35
+    },
+    "iberia": {
+      "name": "Iberia Club (Avios)",
+      "short": "Iberia Avios",
+      "cents_per_point": 1.35
+    },
+    "aer_lingus": {
+      "name": "Aer Lingus AerClub (Avios)",
+      "short": "Aer Lingus Avios",
+      "cents_per_point": 1.35
+    },
+    "qatar": {
+      "name": "Qatar Airways Privilege Club (Avios)",
+      "short": "Qatar Avios",
+      "cents_per_point": 1.35
+    },
+    "virgin_atlantic": {
+      "name": "Virgin Atlantic Flying Club",
+      "short": "Virgin Atlantic",
+      "cents_per_point": 1.5
+    },
+    "krisflyer": {
+      "name": "Singapore Airlines KrisFlyer",
+      "short": "KrisFlyer",
+      "cents_per_point": 1.25
+    },
+    "ana": {
+      "name": "ANA Mileage Club",
+      "short": "ANA",
+      "cents_per_point": 1.3
+    },
+    "lifemiles": {
+      "name": "Avianca LifeMiles",
+      "short": "LifeMiles",
+      "cents_per_point": 1.65
+    },
+    "asia_miles": {
+      "name": "Cathay Pacific Asia Miles",
+      "short": "Asia Miles",
+      "cents_per_point": 1.3
+    },
+    "emirates": {
+      "name": "Emirates Skywards",
+      "short": "Skywards",
+      "cents_per_point": 1.0
+    },
+    "qantas": {
+      "name": "Qantas Frequent Flyer",
+      "short": "Qantas",
+      "cents_per_point": 1.3
+    },
+    "aeromexico": {
+      "name": "Aeromexico Rewards",
+      "short": "Aeromexico",
+      "cents_per_point": 0.8
+    }
+  },
+  "cards": {
+    "chase_ur": {
+      "name": "Chase Ultimate Rewards",
+      "short": "Chase",
+      "source_url": "https://upgradedpoints.com/credit-cards/chase-ultimate-rewards-transfer-partners/",
+      "source_updated": "2026-11-06",
+      "increment": 1000,
+      "partners": [
+        {
+          "program": "aer_lingus",
+          "points": 1,
+          "program_points": 1
+        },
+        {
+          "program": "aeroplan",
+          "points": 1,
+          "program_points": 1
+        },
+        {
+          "program": "flying_blue",
+          "points": 1,
+          "program_points": 1
+        },
+        {
+          "program": "british_airways",
+          "points": 1,
+          "program_points": 1
+        },
+        {
+          "program": "iberia",
+          "points": 1,
+          "program_points": 1
+        },
+        {
+          "program": "jetblue",
+          "points": 1,
+          "program_points": 1
+        },
+        {
+          "program": "krisflyer",
+          "points": 1,
+          "program_points": 1
+        },
+        {
+          "program": "southwest",
+          "points": 1,
+          "program_points": 1
+        },
+        {
+          "program": "united",
+          "points": 1,
+          "program_points": 1
+        },
+        {
+          "program": "virgin_atlantic",
+          "points": 1,
+          "program_points": 1
+        }
+      ]
+    },
+    "amex_mr": {
+      "name": "Amex Membership Rewards",
+      "short": "Amex",
+      "source_url": "https://upgradedpoints.com/credit-cards/amex-membership-rewards-transfer-partners/",
+      "source_updated": "2026-10-13",
+      "increment": 1000,
+      "partners": [
+        {
+          "program": "aer_lingus",
+          "points": 1,
+          "program_points": 1
+        },
+        {
+          "program": "aeromexico",
+          "points": 5,
+          "program_points": 8
+        },
+        {
+          "program": "aeroplan",
+          "points": 1,
+          "program_points": 1
+        },
+        {
+          "program": "flying_blue",
+          "points": 1,
+          "program_points": 1
+        },
+        {
+          "program": "ana",
+          "points": 1,
+          "program_points": 1
+        },
+        {
+          "program": "lifemiles",
+          "points": 1,
+          "program_points": 1
+        },
+        {
+          "program": "british_airways",
+          "points": 1,
+          "program_points": 1
+        },
+        {
+          "program": "asia_miles",
+          "points": 5,
+          "program_points": 4
+        },
+        {
+          "program": "delta",
+          "points": 1,
+          "program_points": 1
+        },
+        {
+          "program": "emirates",
+          "points": 5,
+          "program_points": 4
+        },
+        {
+          "program": "iberia",
+          "points": 1,
+          "program_points": 1
+        },
+        {
+          "program": "jetblue",
+          "points": 5,
+          "program_points": 4,
+          "minimum": 250,
+          "increment": 250
+        },
+        {
+          "program": "qantas",
+          "points": 1,
+          "program_points": 1,
+          "minimum": 500,
+          "increment": 500
+        },
+        {
+          "program": "qatar",
+          "points": 1,
+          "program_points": 1
+        },
+        {
+          "program": "krisflyer",
+          "points": 1,
+          "program_points": 1
+        },
+        {
+          "program": "virgin_atlantic",
+          "points": 1,
+          "program_points": 1
+        }
+      ]
+    }
+  },
+  "airlines": [
+    {
+      "brands": [
+        "United"
+      ],
+      "own_program": "united",
+      "partner_programs": [
+        "aeroplan",
+        "krisflyer",
+        "ana",
+        "lifemiles"
+      ]
+    },
+    {
+      "brands": [
+        "Air Canada"
+      ],
+      "own_program": "aeroplan",
+      "partner_programs": [
+        "united",
+        "krisflyer",
+        "ana",
+        "lifemiles"
+      ]
+    },
+    {
+      "brands": [
+        "Singapore Airlines"
+      ],
+      "own_program": "krisflyer",
+      "partner_programs": [
+        "aeroplan",
+        "united",
+        "ana",
+        "lifemiles"
+      ]
+    },
+    {
+      "brands": [
+        "(?-i:ANA)",
+        "All Nippon Airways"
+      ],
+      "own_program": "ana",
+      "partner_programs": [
+        "aeroplan",
+        "united",
+        "krisflyer",
+        "lifemiles"
+      ]
+    },
+    {
+      "brands": [
+        "Avianca"
+      ],
+      "own_program": "lifemiles",
+      "partner_programs": [
+        "aeroplan",
+        "united",
+        "krisflyer",
+        "ana"
+      ]
+    },
+    {
+      "brands": [
+        "Lufthansa",
+        "(?-i:SWISS)",
+        "Swiss International",
+        "Austrian",
+        "Turkish Airlines",
+        "EVA Air",
+        "Copa",
+        "TAP Air Portugal",
+        "Air New Zealand",
+        "Asiana"
+      ],
+      "own_program": null,
+      "partner_programs": [
+        "aeroplan",
+        "united",
+        "krisflyer",
+        "ana",
+        "lifemiles"
+      ]
+    },
+    {
+      "brands": [
+        "Delta"
+      ],
+      "own_program": "delta",
+      "partner_programs": [
+        "flying_blue",
+        "virgin_atlantic",
+        "aeromexico"
+      ]
+    },
+    {
+      "brands": [
+        "Air France",
+        "KLM"
+      ],
+      "own_program": "flying_blue",
+      "partner_programs": [
+        "delta",
+        "virgin_atlantic",
+        "aeromexico"
+      ]
+    },
+    {
+      "brands": [
+        "Virgin Atlantic"
+      ],
+      "own_program": "virgin_atlantic",
+      "partner_programs": [
+        "delta",
+        "flying_blue"
+      ]
+    },
+    {
+      "brands": [
+        "Aerom[eé]xico"
+      ],
+      "own_program": "aeromexico",
+      "partner_programs": [
+        "delta",
+        "flying_blue"
+      ]
+    },
+    {
+      "brands": [
+        "Korean Air",
+        "WestJet"
+      ],
+      "own_program": null,
+      "partner_programs": [
+        "delta",
+        "flying_blue"
+      ]
+    },
+    {
+      "brands": [
+        "American"
+      ],
+      "own_program": null,
+      "partner_programs": [
+        "british_airways",
+        "iberia",
+        "qatar",
+        "asia_miles",
+        "qantas"
+      ]
+    },
+    {
+      "brands": [
+        "Alaska",
+        "Hawaiian"
+      ],
+      "own_program": null,
+      "partner_programs": [
+        "british_airways",
+        "iberia",
+        "qatar",
+        "asia_miles",
+        "qantas"
+      ]
+    },
+    {
+      "brands": [
+        "Japan Airlines",
+        "(?-i:JAL)",
+        "Finnair",
+        "Royal Jordanian"
+      ],
+      "own_program": null,
+      "partner_programs": [
+        "british_airways",
+        "iberia",
+        "qatar",
+        "asia_miles",
+        "qantas"
+      ]
+    },
+    {
+      "brands": [
+        "British Airways"
+      ],
+      "own_program": "british_airways",
+      "partner_programs": [
+        "iberia",
+        "qatar",
+        "asia_miles",
+        "qantas",
+        "aer_lingus"
+      ]
+    },
+    {
+      "brands": [
+        "Iberia"
+      ],
+      "own_program": "iberia",
+      "partner_programs": [
+        "british_airways",
+        "qatar",
+        "asia_miles",
+        "qantas"
+      ]
+    },
+    {
+      "brands": [
+        "Aer Lingus"
+      ],
+      "own_program": "aer_lingus",
+      "partner_programs": [
+        "british_airways",
+        "iberia"
+      ]
+    },
+    {
+      "brands": [
+        "Qatar Airways"
+      ],
+      "own_program": "qatar",
+      "partner_programs": [
+        "british_airways",
+        "iberia",
+        "asia_miles",
+        "qantas"
+      ]
+    },
+    {
+      "brands": [
+        "Cathay Pacific",
+        "Cathay"
+      ],
+      "own_program": "asia_miles",
+      "partner_programs": [
+        "british_airways",
+        "iberia",
+        "qatar",
+        "qantas"
+      ]
+    },
+    {
+      "brands": [
+        "Qantas"
+      ],
+      "own_program": "qantas",
+      "partner_programs": [
+        "british_airways",
+        "iberia",
+        "qatar",
+        "asia_miles"
+      ]
+    },
+    {
+      "brands": [
+        "Emirates"
+      ],
+      "own_program": "emirates",
+      "partner_programs": []
+    },
+    {
+      "brands": [
+        "JetBlue"
+      ],
+      "own_program": "jetblue",
+      "partner_programs": []
+    },
+    {
+      "brands": [
+        "Southwest"
+      ],
+      "own_program": "southwest",
+      "partner_programs": []
+    }
+  ],
+  "airlines_note": "Partner programs are alliance/partner programs that can usually book this airline's flights with miles (Star Alliance, SkyTeam, oneworld and Delta/Virgin Atlantic/Aeromexico partnerships). Availability for partner bookings is often limited."
+}

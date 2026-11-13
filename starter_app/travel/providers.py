@@ -13,6 +13,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 from .engine import airports, hotel_city, number
+from .airline_points import top_compatible as top_compatible_flights
+from .hotel_points import TOP_HOTELS, top_compatible
 
 ENDPOINT = "https://serpapi.com/search.json"
 HOTEL_SEARCH_NAMES = {"NYC": "New York City hotels", "TYO": "Tokyo hotels", "LAS": "Las Vegas hotels"}
@@ -68,7 +70,7 @@ def _primary_airport(value: str) -> str:
 
 def _flight_leg_fares(payload: dict) -> list[dict]:
     return [item for item in (payload.get("best_flights") or []) + (payload.get("other_flights") or [])
-            if isinstance(item, dict) and number(item.get("price"), -1) > 0][:8]
+            if isinstance(item, dict) and number(item.get("price"), -1) > 0][:12]
 
 
 def _leg_summary(item: dict, direction: str, search_url: str | None = None) -> dict:
@@ -135,14 +137,19 @@ def _nights(query: dict) -> int:
 
 
 def _hotel_data(prop: dict, query: dict, index: int, observed_utc: str | None = None) -> dict | None:
-    total = number((prop.get("total_rate") or {}).get("extracted_lowest"), -1)
+    total_rate = prop.get("total_rate") or {}
+    total = number(total_rate.get("extracted_lowest"), -1)
+    before_taxes = number(total_rate.get("extracted_before_taxes_fees"), -1)
     basis = "Listing total-stay rate (lowest, after listed taxes/fees)"
     if total <= 0:
-        nightly = number((prop.get("rate_per_night") or {}).get("extracted_lowest"), -1)
+        nightly_rate = prop.get("rate_per_night") or {}
+        nightly = number(nightly_rate.get("extracted_lowest"), -1)
         nights = _nights(query)
         if nightly <= 0 or nights <= 0:
             return None
         total = round(nightly * nights, 2)
+        nightly_before = number(nightly_rate.get("extracted_before_taxes_fees"), -1)
+        before_taxes = round(nightly_before * nights, 2) if nightly_before > 0 else -1
         basis = f"Estimate: listed nightly rate × {nights} night(s); no total-stay rate supplied"
     return {"id": f"LIVE-H{index}", "source": HOTEL_SOURCE,
             "name": str(prop.get("name", "Unnamed hotel"))[:120],
@@ -152,6 +159,7 @@ def _hotel_data(prop: dict, query: dict, index: int, observed_utc: str | None = 
             "room_type": "Unspecified listing (confirm occupancy and room type)",
             "rate_basis": basis,
             "stay_rate_usd": total, "mandatory_fees_usd": 0, "refundable": None,
+            "stay_rate_before_taxes_usd": before_taxes if 0 < before_taxes <= total else None,
             "max_occupancy": None, "searched_adults": query["travelers"],
             "award_points_total": 0, "award_taxes_usd": 0,
             "award_program": None, "data_status": LIVE_STATUS,
@@ -171,37 +179,62 @@ def _live_flights(query: dict, key: str, observed: str) -> tuple[list[dict], lis
     out_url, back_url = _search_url(outbound, "google_flights_url"), _search_url(inbound, "google_flights_url")
     out_prices = _flight_leg_fares(outbound)
     back_prices = _flight_leg_fares(inbound)
-    flights = []
-    for o in out_prices[:3]:
-        for i in back_prices[:3]:
-            flights.append(_flight_combo_data(o, i, query, origin, destination, len(flights) + 1,
-                                              observed, out_url, back_url))
+    combos = []
+    for o in out_prices[:6]:  # pairs come from the two searches already made; no extra API calls
+        for i in back_prices[:6]:
+            combos.append(_flight_combo_data(o, i, query, origin, destination, len(combos) + 1,
+                                             observed, out_url, back_url))
+    flights, compatible = top_compatible_flights(combos)
     notes = []
     if not out_prices or not back_prices:
         missing = " and ".join(name for name, legs in (("outbound", out_prices), ("return", back_prices)) if not legs)
         notes.append(f"Live flight search returned no priced {missing} listings for {origin} ↔ {destination} on these dates.")
+    elif flights:
+        notes.append(_shortlist_note("outbound + return pairings", len(flights), len(combos), compatible,
+                                     "the airline's own program or an alliance partner on both legs"))
     return flights, notes
+
+
+def _shortlist_note(kind: str, shown: int, total: int, compatible: int, how: str) -> str:
+    note = (f"Showing {shown} of {total} {kind}: those Chase or Amex points can pay for (via {how}) come first, "
+            "ranked by how many of the two cards can, then by price.")
+    if compatible < shown:
+        note += (f" Only {compatible} qualified, so the remaining {shown - compatible} are the cheapest other options, "
+                 "marked as having no Chase/Amex points option.")
+    return note
 
 
 def _live_hotels(query: dict, key: str, observed: str) -> tuple[list[dict], list[str]]:
     city = hotel_city(query["destination"])
     hotel_query = HOTEL_SEARCH_NAMES.get(city, query["destination"] + " hotels")
-    response = _request({"engine": "google_hotels", "q": hotel_query, "gl": "us", "hl": "en",
-                         "currency": "USD", "check_in_date": query["depart_date"],
-                         "check_out_date": query["return_date"], "adults": query["travelers"]}, key)
-    properties = [p for p in (response.get("properties") or []) if isinstance(p, dict)][:12]
-    hotels = []
-    for idx, property_item in enumerate(properties, 1):
-        hotel = _hotel_data(property_item, query, idx, observed)
-        if hotel:
-            hotels.append(hotel)
+    params = {"engine": "google_hotels", "q": hotel_query, "gl": "us", "hl": "en",
+              "currency": "USD", "check_in_date": query["depart_date"],
+              "check_out_date": query["return_date"], "adults": query["travelers"]}
+    properties: list[dict] = []
+    priced: list[dict] = []
+    response = _request(params, key)
+    for page in range(2):  # at most one extra page (one more API credit) to find enough card-compatible hotels
+        page_properties = [p for p in (response.get("properties") or []) if isinstance(p, dict)]
+        for property_item in page_properties:
+            hotel = _hotel_data(property_item, query, len(properties) + 1, observed)
+            properties.append(property_item)
+            if hotel:
+                priced.append(hotel)
+        token = (response.get("serpapi_pagination") or {}).get("next_page_token")
+        if page == 1 or not token or top_compatible(priced)[1] >= TOP_HOTELS:
+            break
+        response = _request({**params, "next_page_token": token}, key)
+    hotels, compatible = top_compatible(priced)
     notes = []
     if not properties:
         notes.append(f"Live hotel search for “{hotel_query}” returned no listings for these dates.")
-    elif not hotels:
+    elif not priced:
         notes.append(f"Live hotel search returned {len(properties)} listing(s), but none included a price for these dates.")
-    elif len(hotels) < len(properties):
-        notes.append(f"{len(properties) - len(hotels)} hotel listing(s) had no price and were left out.")
+    else:
+        if len(priced) < len(properties):
+            notes.append(f"{len(properties) - len(priced)} hotel listing(s) had no price and were left out.")
+        notes.append(_shortlist_note("priced hotels", len(hotels), len(priced), compatible,
+                                     "the hotel chain's loyalty program"))
     if any(h["rate_basis"].startswith("Estimate") for h in hotels):
         notes.append("Some hotel totals are nightly rate × nights estimates because the provider gave no total-stay rate.")
     return hotels, notes
@@ -236,6 +269,6 @@ def live_offers(query: dict) -> tuple[list[dict], list[dict], list[str]]:
         "Bag fees are not supplied by this live search. They are shown as Unknown and are NOT included in any price. Do not call this the all-in cheapest price.",
         "Hotel prices are search-listing estimates. Room type, occupancy, cancellation terms and resort/mandatory fees are not confirmed.",
         "City searches currently choose one primary airport rather than scanning all nearby airports.",
-        "Points transfer and real award inventory are not supported by this live adapter.",
+        "Flight and hotel points shown in live mode are ESTIMATES (cash ÷ published cents-per-point value), not real award prices. Real award inventory, partner-airline awards and transfer bonuses are not checked.",
     ]
     return flights, hotels, warnings

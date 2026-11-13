@@ -1,0 +1,73 @@
+{
+  "checked_on": "2026-11-13",
+  "notice": "Points are ESTIMATES: cash price ÷ a published average value per point. Real award prices vary by date and hotel. Transfer ratios come from a secondary source and exclude transfer bonuses; confirm on your card's transfer page before moving points (transfers are usually irreversible).",
+  "valuation_source": {
+    "name": "The Points Guy monthly valuations, November 2026",
+    "url": "https://thepointsguy.com/guide/monthly-valuations/",
+    "published": "2026-11-02"
+  },
+  "programs": {
+    "marriott": {
+      "name": "Marriott Bonvoy", "short": "Bonvoy", "cents_per_point": 0.75,
+      "brands": ["Marriott", "JW Marriott", "Ritz-Carlton", "St\\. Regis", "St Regis", "Westin", "Sheraton",
+                 "Le M[eé]ridien", "Renaissance", "Courtyard", "Residence Inn", "Fairfield Inn", "Fairfield by Marriott",
+                 "SpringHill Suites", "TownePlace", "AC Hotel", "Aloft", "Element", "Moxy", "Four Points",
+                 "Autograph Collection", "Tribute Portfolio", "Luxury Collection", "Delta Hotels", "Gaylord",
+                 "(?-i:EDITION)", "W Hotel", "(?-i:^W )"]
+    },
+    "hilton": {
+      "name": "Hilton Honors", "short": "Hilton", "cents_per_point": 0.4,
+      "brands": ["Hilton", "Waldorf Astoria", "Conrad", "LXR", "Canopy by Hilton", "Curio Collection", "DoubleTree",
+                 "Embassy Suites", "Hampton Inn", "Hampton by Hilton", "Homewood Suites", "Home2 Suites",
+                 "Tapestry Collection", "Tru by Hilton", "Motto by Hilton", "Signia", "Spark by Hilton"]
+    },
+    "hyatt": {
+      "name": "World of Hyatt", "short": "Hyatt", "cents_per_point": 1.65,
+      "brands": ["Hyatt", "Andaz", "Alila", "Thompson", "Unbound Collection", "JdV by Hyatt", "Miraval"]
+    },
+    "ihg": {
+      "name": "IHG One Rewards", "short": "IHG", "cents_per_point": 0.6,
+      "brands": ["InterContinental", "Kimpton", "Hotel Indigo", "Holiday Inn", "Crowne Plaza", "Candlewood Suites",
+                 "Staybridge Suites", "avid hotel", "EVEN Hotel", "voco", "Six Senses", "Vignette Collection",
+                 "Atwell Suites"]
+    },
+    "wyndham": {
+      "name": "Wyndham Rewards", "short": "Wyndham", "cents_per_point": 0.55,
+      "brands": ["Wyndham", "La Quinta", "Days Inn", "Super 8", "Ramada", "Microtel", "Baymont", "Wingate",
+                 "Hawthorn Suites", "Travelodge", "Howard Johnson", "AmericInn", "Dazzler", "Trademark Collection",
+                 "Registry Collection"]
+    },
+    "choice": {
+      "name": "Choice Privileges", "short": "Choice", "cents_per_point": 0.85,
+      "brands": ["Comfort Inn", "Comfort Suites", "Quality Inn", "Sleep Inn", "Clarion", "Cambria", "Econo Lodge",
+                 "Rodeway Inn", "MainStay Suites", "Suburban Studios", "WoodSpring Suites", "Everhome",
+                 "Ascend Hotel Collection", "Country Inn & Suites"]
+    }
+  },
+  "cards": {
+    "chase_ur": {
+      "name": "Chase Ultimate Rewards", "short": "Chase",
+      "source_url": "https://upgradedpoints.com/credit-cards/chase-ultimate-rewards-transfer-partners/",
+      "source_updated": "2026-11-06",
+      "increment": 1000,
+      "partners": [
+        {"program": "marriott", "points": 1, "program_points": 1},
+        {"program": "hyatt", "points": 1, "program_points": 1,
+         "note": "1:1 from Sapphire Reserve; 4:3 from Sapphire Preferred and Ink Business Preferred"},
+        {"program": "ihg", "points": 1, "program_points": 1},
+        {"program": "wyndham", "points": 1, "program_points": 1}
+      ]
+    },
+    "amex_mr": {
+      "name": "Amex Membership Rewards", "short": "Amex",
+      "source_url": "https://upgradedpoints.com/credit-cards/amex-membership-rewards-transfer-partners/",
+      "source_updated": "2026-10-13",
+      "increment": 1000,
+      "partners": [
+        {"program": "marriott", "points": 1, "program_points": 1},
+        {"program": "hilton", "points": 1, "program_points": 2},
+        {"program": "choice", "points": 1, "program_points": 1}
+      ]
+    }
+  }
+}

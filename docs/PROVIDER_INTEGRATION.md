@@ -31,6 +31,14 @@ SerpApi is a third-party service, not Google's official public flight-booking AP
 ## Credit card logic
 The default UI lets users manually enter points per dollar and their own cents-per-point valuation. It does **not** know live terms for Chase, Amex, Bilt, Citi, Capital One, or hotel/airline partners. For issuer-specific recommendations, students need sourced, date-stamped product terms and a separately validated rewards-eligibility engine. Do not recommend churning or a new card as if approval or bonus eligibility were guaranteed.
 
+### Flight and hotel shortlist + points sort (live mode)
+- **Shortlist (never empty):** up to 10 flights and 10 hotels. Offers that Chase or Amex points can pay for come first, ranked by how many of the two cards can (2 before 1), then by price. If fewer than 10 qualify, the list is filled with the cheapest other offers, tagged "No Chase/Amex points option". A search never ends with zero results because of this filter.
+- **Hotels:** the chain comes from brand words in the hotel name (Courtyard → Marriott, Hampton Inn → Hilton…). Marriott: both cards; Hyatt, IHG, Wyndham: Chase; Hilton, Choice: Amex. If page 1 has fewer than 10 qualifying hotels, one more SerpApi page is requested (one extra API credit).
+- **Flights:** up to 6 outbound × 6 return one-way results are paired (no extra API calls). Each leg uses the first airline on it. A leg can be paid through the airline's own program **or an alliance partner** that can book it, e.g. American → British Airways / Iberia / Qatar Avios (both cards), United → Aeroplan, KrisFlyer, ANA, LifeMiles, Delta → Flying Blue, Virgin Atlantic. A card must reach a program on both legs. Spirit, Frontier and similar airlines have no option.
+- **Points estimate:** cash (pre-tax for hotels when SerpApi gives it) ÷ The Points Guy's November 2026 value for the program, converted with each card's transfer ratio and rounded up to the transfer increment. Each card uses whichever reachable program needs the fewest of its points. Partner award charts are **not** modeled, and because the method is cash ÷ value, programs valued higher (e.g. LifeMiles 1.65¢) look cheaper. Treat every figure as a rough estimate.
+- **Sort by points:** fewest card points first, whichever card needs fewer; offers with no points figure go last. Demo mode sorts on the fictional award prices.
+- Shared estimator: `travel/loyalty.py`; data: `data/hotel_points.json`, `data/airline_points.json` (sources and dates included). Chase → Hyatt is stored as 1:1 (Sapphire Reserve); it is 4:3 on Sapphire Preferred and Ink Business Preferred.
+
 ## Debugging
 - `Live mode requires SERPAPI_KEY`: create your untracked `.env`, enter authorized key.
 - `Provider HTTP error`: check quota, plan, and current docs.

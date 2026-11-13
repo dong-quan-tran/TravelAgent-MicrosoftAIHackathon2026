@@ -10,6 +10,9 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from .airline_points import estimate as estimate_flight_points
+from .hotel_points import estimate as estimate_hotel_points
+
 DATA_FILE = Path(__file__).resolve().parent.parent / "data" / "sample_offers.json"
 CITY_AIRPORTS = {
     "DALLAS": {"DFW", "DAL"}, "NYC": {"JFK", "LGA", "EWR"},
@@ -152,6 +155,10 @@ def price_flight(offer: dict[str, Any], query: dict[str, Any]) -> dict[str, Any]
     enriched["cash_after_rewards_estimate_usd"] = round(total - enriched["reward_points_earned"] * query["point_value_cents"] / 100, 2)
     enriched["award_economic_cost_usd"] = round(award_fees + points * query["point_value_cents"] / 100, 2) if points else None
     enriched["award_affordable"] = bool(points and query["award_points_balance"] >= points)
+    enriched["points_estimate"] = estimate_flight_points(offer, travelers)
+    # Sort key for "Sort by points": fewest card points regardless of card; listed award price as fallback.
+    enriched["points_sort_value"] = (enriched["points_estimate"]["lowest_card_points"] if enriched["points_estimate"]
+                                     else points or None)
     return enriched
 
 
@@ -167,6 +174,11 @@ def price_hotel(offer: dict[str, Any], query: dict[str, Any]) -> dict[str, Any]:
     enriched["cash_after_rewards_estimate_usd"] = round(total - enriched["reward_points_earned"] * query["point_value_cents"] / 100, 2)
     enriched["award_economic_cost_usd"] = round(fees + points * query["point_value_cents"] / 100, 2) if points else None
     enriched["award_affordable"] = bool(points and query["award_points_balance"] >= points)
+    basis = offer.get("stay_rate_before_taxes_usd") or total
+    enriched["points_estimate"] = estimate_hotel_points(offer.get("name"), basis)
+    # Sort key for "Sort by points": fewest card points regardless of card; listed award price as fallback.
+    enriched["points_sort_value"] = (enriched["points_estimate"]["lowest_card_points"] if enriched["points_estimate"]
+                                     else points or None)
     return enriched
 
 

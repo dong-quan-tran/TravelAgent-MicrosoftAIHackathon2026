@@ -9,25 +9,27 @@ from travel.engine import compare, validate
 FLIGHT_OUT = {
     "search_metadata": {"google_flights_url": "https://www.google.com/travel/flights?test=out"},
     "best_flights": [{"price": 200, "total_duration": 300, "flights": [
-        {"airline": "Testair", "flight_number": "TA 100",
+        {"airline": "United", "flight_number": "TA 100",
          "departure_airport": {"id": "DFW", "time": "2027-03-11 06:00"},
          "arrival_airport": {"id": "ORD", "time": "2027-03-11 08:30"}},
-        {"airline": "Otherair", "flight_number": "OA 200",
+        {"airline": "Air Canada", "flight_number": "OA 200",
          "departure_airport": {"id": "ORD", "time": "2027-03-11 09:30"},
          "arrival_airport": {"id": "JFK", "time": "2027-03-11 12:00"}}]}],
 }
 FLIGHT_BACK = {
     "search_metadata": {"google_flights_url": "javascript:alert(1)"},
     "other_flights": [{"price": 150, "total_duration": 240, "flights": [
-        {"airline": "Testair", "flight_number": "TA 300",
+        {"airline": "United", "flight_number": "TA 300",
          "departure_airport": {"id": "JFK", "time": "2027-03-15 10:00"},
          "arrival_airport": {"id": "DFW", "time": "2027-03-15 13:00"}}]}],
 }
 HOTELS = {"properties": [
-    {"name": "Fictional Total Inn", "type": "hotel", "link": "https://example.com/hotel",
-     "total_rate": {"extracted_lowest": 800}, "rate_per_night": {"extracted_lowest": 200}},
-    {"name": "Fictional Nightly Lodge", "link": "ftp://example.com/x", "rate_per_night": {"extracted_lowest": 100}},
+    {"name": "Courtyard Fictional Midtown", "type": "hotel", "link": "https://example.com/hotel",
+     "total_rate": {"extracted_lowest": 800, "extracted_before_taxes_fees": 690},
+     "rate_per_night": {"extracted_lowest": 200}},
+    {"name": "Hampton Inn Fictional Lodge", "link": "ftp://example.com/x", "rate_per_night": {"extracted_lowest": 100}},
     {"name": "Fictional No Price Hotel"},
+    {"name": "Fictional Independent Hotel", "total_rate": {"extracted_lowest": 300}},
 ]}
 
 
@@ -102,7 +104,7 @@ class ProvidersTests(unittest.TestCase):
         flights, _, _ = self.run_live(travelers=2)
         self.assertEqual(len(flights), 1)
         offer = flights[0]
-        self.assertEqual(offer["carrier"], "Testair / Otherair")
+        self.assertEqual(offer["carrier"], "United / Air Canada")
         self.assertEqual([leg["direction"] for leg in offer["legs"]], ["outbound", "return"])
         self.assertEqual(offer["legs"][0]["flight_numbers"], ["TA 100", "OA 200"])
         self.assertEqual(offer["legs"][0]["depart_time"], "2027-03-11 06:00")
@@ -116,7 +118,13 @@ class ProvidersTests(unittest.TestCase):
 
     def test_live_hotels_report_skipped_listings(self):
         _, hotels, warnings = self.run_live()
-        self.assertEqual([h["name"] for h in hotels], ["Fictional Total Inn", "Fictional Nightly Lodge"])
+        # Marriott (Chase + Amex) ranks above Hilton (Amex only) even though it costs more;
+        # the independent hotel fills the list after them instead of being dropped.
+        self.assertEqual([h["name"] for h in hotels],
+                         ["Courtyard Fictional Midtown", "Hampton Inn Fictional Lodge", "Fictional Independent Hotel"])
+        self.assertEqual(hotels[0]["stay_rate_before_taxes_usd"], 690)
+        self.assertIsNone(hotels[1]["stay_rate_before_taxes_usd"])
+        self.assertTrue(any("Showing 3 of 3 priced hotels" in w and "Only 2 qualified" in w for w in warnings))
         self.assertEqual(hotels[0]["source_url"], "https://example.com/hotel")
         self.assertIsNone(hotels[1]["source_url"])
         self.assertTrue(any("1 hotel listing(s) had no price" in w for w in warnings))
@@ -129,6 +137,45 @@ class ProvidersTests(unittest.TestCase):
         _, hotels, warnings = self.run_live(hotels={"properties": [{"name": "Unpriced"}]})
         self.assertEqual(hotels, [])
         self.assertTrue(any("none included a price" in w for w in warnings))
+        _, hotels, warnings = self.run_live(hotels={"properties": [{"name": "Indie Inn", "total_rate": {"extracted_lowest": 90}}]})
+        self.assertEqual([h["name"] for h in hotels], ["Indie Inn"], "never filtered to nothing")
+        self.assertTrue(any("Only 0 qualified" in w for w in warnings))
+
+    def test_flights_filtered_to_card_compatible_pairings(self):
+        def leg(airline, price, origin, dest):
+            return {"price": price, "flights": [{"airline": airline, "departure_airport": {"id": origin},
+                                                 "arrival_airport": {"id": dest}}]}
+        out = {"best_flights": [leg("Spirit", 90, "DFW", "JFK"), leg("Southwest", 200, "DFW", "JFK"),
+                                leg("American", 250, "DFW", "JFK")]}
+        back = {"best_flights": [leg("Spirit", 95, "JFK", "DFW"), leg("Emirates", 600, "JFK", "DFW"),
+                                 leg("American", 260, "JFK", "DFW")]}
+        flights, _, warnings = self.run_live(flights={"DFW": out, "JFK": back})
+        carriers = [f["carrier"] for f in flights]
+        self.assertEqual(len(flights), 9, "all 9 pairings shown: fewer than 10, so nothing is dropped")
+        self.assertEqual(carriers[0], "American", "American both ways: Chase AND Amex via Avios partners")
+        # Southwest/American: Chase only. American/Emirates: Amex only. Then the uncovered ones by price.
+        self.assertEqual(set(carriers[1:3]), {"Southwest / American", "American / Emirates"})
+        self.assertEqual(carriers[3:5], ["Spirit", "Southwest / Spirit"])
+        self.assertTrue(any("Only 3 qualified" in w for w in warnings))
+
+    def test_hotels_capped_at_ten_and_second_page_fetched_when_short(self):
+        page1 = {"properties": [{"name": f"Holiday Inn Test {i}", "total_rate": {"extracted_lowest": 100 + i}} for i in range(6)]
+                 + [{"name": "Indie", "total_rate": {"extracted_lowest": 50}}],
+                 "serpapi_pagination": {"next_page_token": "tok"}}
+        page2 = {"properties": [{"name": f"Westin Test {i}", "total_rate": {"extracted_lowest": 900 + i}} for i in range(6)],
+                 "serpapi_pagination": {"next_page_token": "tok2"}}
+        calls = []
+        def respond(params, key):
+            if params["engine"] == "google_flights":
+                return {"DFW": FLIGHT_OUT, "JFK": FLIGHT_BACK}[params["departure_id"]]
+            calls.append(params.get("next_page_token"))
+            return page2 if params.get("next_page_token") else page1
+        with patch("travel.providers._request", side_effect=respond):
+            _, hotels, _ = live_offers(live_query())
+        self.assertEqual(calls, [None, "tok"], "fetches exactly one extra page")
+        self.assertEqual(len(hotels), 10)
+        self.assertTrue(all(h["name"].startswith("Westin") for h in hotels[:6]), "two-card hotels first")
+        self.assertEqual(len({h["id"] for h in hotels}), 10)
 
     def test_empty_flight_leg_is_reported(self):
         flights, _, warnings = self.run_live(flights={"DFW": FLIGHT_OUT, "JFK": {"best_flights": []}})
@@ -145,7 +192,7 @@ class ProvidersTests(unittest.TestCase):
     def test_flight_provider_error_keeps_hotels(self):
         flights, hotels, warnings = self.run_live(flight_error="Cannot reach live provider")
         self.assertEqual(flights, [])
-        self.assertEqual(len(hotels), 2)
+        self.assertEqual(len(hotels), 3)
         self.assertTrue(any("Live flight search failed" in w for w in warnings))
 
     def test_both_provider_errors_raise(self):
@@ -157,7 +204,7 @@ class ProvidersTests(unittest.TestCase):
         flights, hotels, warnings = self.run_live(travelers=2)
         result = compare(query, flights, hotels, warnings)
         self.assertEqual(result["flights"][0]["total_cash_usd"], 700)
-        self.assertEqual(result["hotels"][0]["id"], "LIVE-H2")
+        self.assertEqual(result["hotels"][0]["id"], "LIVE-H4", "cheapest hotel overall, even without a points option")
         self.assertTrue(all(o["fees_incomplete"] for o in result["flights"] + result["hotels"]))
 
 

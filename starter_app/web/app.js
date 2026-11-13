@@ -88,7 +88,7 @@ function legsHtml(offer){
   }
   return `<div class="legs">${offer.legs.map(leg=>`<div class="leg"><span class="leg-dir">${leg.direction==='return'?'Return':'Out'}</span><span class="leg-main"><strong>${safe(legTime(leg.depart_time))}</strong> ${safe(leg.from||'?')} → <strong>${safe(legTime(leg.arrive_time))}</strong> ${safe(leg.to||'?')}</span><span class="leg-sub">${safe(leg.carrier)}${leg.flight_numbers&&leg.flight_numbers.length?' · '+safe(leg.flight_numbers.join(', ')):''} · ${safe(stopsLabel(leg.stops))} · ${safe(hours(leg.duration_minutes))} · ${money(leg.price_per_adult_usd)} / adult</span></div>`).join('')}</div>`;
 }
-function offerHtml(offer,index,isHotel,query){
+function offerHtml(offer,index,isHotel,query,marks=null){
   const complete=offerComplete(offer);
   const missing=complete?[]:unknownFees(offer,isHotel,query);
   const title=isHotel?offer.name:`${offer.origin} → ${offer.destination} · ${offer.carrier}`;
@@ -114,38 +114,99 @@ function offerHtml(offer,index,isHotel,query){
   const award=offer.points_required > 0?`<div class="award">${offer.award_affordable?'Points scenario — availability unverified':'Not enough entered points'}: <strong>${offer.points_required.toLocaleString()} points + ${offer.award_price_complete === false?'unknown cash fees':money(offer.award_fees_usd)}</strong><br>Economic cost at your valuation: ${offer.award_price_complete === false?'Unknown':money(offer.award_economic_cost_usd)}</div>`:'';
   const observed=isDemo(offer)?'Synthetic fixture · no live observation':`Observed ${utcTime(offer.observed_utc)}`;
   const link=safeLink(offer.source_url,isHotel?'Listing link':'View search');
-  return `<article class="offer ${index===0?'offer-best':''}">
-    <div class="offer-top"><div><h4>${safe(title)}</h4><div class="sourceline">${safe(offer.source||'Source unknown')} ${link}</div></div><div class="cost">${money(offer.total_cash_usd)}<small>${safe(priceNote)}</small></div></div>
-    <div class="tags">${statusTag(offer)}${index===0?'<span class="tag best">Lowest known price</span>':''}<span class="tag">${safe(offer.id)}</span></div>
-    ${body}${unknownBox}${award}
+  const est=offer.points_estimate||null;
+  const rankTags=marks
+    ?`${marks.cheapest?'<span class="tag best">Lowest cash price</span>':''}${marks.fewestPoints?'<span class="tag points">Fewest points</span>':''}`
+    :index===0?'<span class="tag best">Lowest known price</span>':'';
+  const programTag=est?`<span class="tag program">${safe(est.programs.map(p=>p.short).join(' + '))} · ${safe(est.cards.map(c=>c.card_short).join(' + '))}</span>`
+    :isLive(offer)?'<span class="tag no-points">No Chase/Amex points option</span>':'';
+  return `<article class="offer ${index===0?'offer-best':''}" data-offer-id="${safe(offer.id)}">
+    <div class="offer-top"><div>${marks?`<span class="rank">#${index+1}</span>`:''}<h4>${safe(title)}</h4><div class="sourceline">${safe(offer.source||'Source unknown')} ${link}</div></div><div class="cost">${money(offer.total_cash_usd)}<small>${safe(priceNote)}</small></div></div>
+    <div class="tags">${statusTag(offer)}${rankTags}${programTag}<span class="tag">${safe(offer.id)}</span></div>
+    ${body}${unknownBox}${award}${est?pointsEstimateHtml(est):''}
     <div class="offer-foot"><span>${safe(observed)}</span><span>${offer.checkout_verified?'Checkout verified':'Not checkout verified'}</span></div></article>`;
 }
 
-/* ---------- summary ---------- */
-function summaryHtml(data){
-  const {summary,query,flights,hotels}=data;
-  const flight=flights.find(f=>f.id===summary.flight_offer_id)||null;
-  const hotel=hotels.find(h=>h.id===summary.hotel_offer_id)||null;
-  const bothParts=Boolean(flight&&hotel);
-  const complete=typeof summary.price_complete==='boolean'?summary.price_complete:bothParts&&offerComplete(flight)&&offerComplete(hotel);
-  const known=typeof summary.known_trip_cash_usd==='number'?summary.known_trip_cash_usd
-    :bothParts?Math.round((flight.total_cash_usd+hotel.total_cash_usd)*100)/100:null;
-  const modeLabel=query.mode==='demo'?'FICTIONAL TEST TOTAL':'PRELIMINARY LIVE SEARCH ESTIMATE';
-  let headline,detail;
-  if(!bothParts){
-    const missingPart=!flight&&!hotel?'No flight or hotel result':!flight?'No flight result':'No hotel result';
-    headline='Incomplete trip';
-    detail=`${missingPart}, so there is no trip total.`;
-  }else if(complete){
-    headline=money(typeof summary.modeled_trip_cash_usd==='number'?summary.modeled_trip_cash_usd:known);
-    detail='Lowest modeled cash flight + hotel · USD';
-  }else{
-    const missing=[...new Set([...unknownFees(flight,false,query),...unknownFees(hotel,true,query)])];
-    headline=`${money(known)} <span class="known-tag">known so far</span>`;
-    detail=`Not an all-in total. Unknown: ${safe(missing.join(', '))}.`;
-  }
-  return `<div class="trip-summary"><div><small>${modeLabel}</small><strong>${headline}</strong><p>${detail}</p><p>${safe(query.origin)} → ${safe(query.destination)} · ${safe(query.travelers)} traveler(s)</p></div><div class="summary-note"><small>ILLUSTRATIVE CARD REWARDS</small><strong>${Number(summary.modeled_points_earned_if_cash||0).toLocaleString()} pts</strong><p>Assumed ${safe(query.card_multiplier)} points / $1. Estimated value: ${money(Number(summary.modeled_points_earned_if_cash||0)*query.point_value_cents/100)}. This is not a cash discount.</p></div></div>`;
+const fmtPts=n=>typeof n==='number'?n.toLocaleString('en-US'):'—';
+function pointsEstimateHtml(est){
+  const programs=est.programs.map(p=>`<p>≈ ${fmtPts(p.program_points)} ${safe(p.name)} points${est.programs.length>1?` (${safe(p.covers.join(' + '))})`:''}${p.via_partner?' <span class="tag partner">partner booking</span>':''}: ${money(p.cash_basis_usd)} ÷ ${safe(p.cents_per_point)}¢ per point</p>`).join('');
+  const cards=est.cards.map(c=>`<li><span>${safe(c.card_name)} <small>${safe(c.ratios.join(', '))}</small></span><strong>${fmtPts(c.card_points)}</strong></li>`).join('');
+  const notes=est.cards.flatMap(c=>c.notes.map(n=>`<p class="pe-note">${safe(c.card_short)} → ${safe(n)}.</p>`)).join('');
+  return `<div class="points-estimate"><div class="pe-head"><strong>≈ ${fmtPts(est.lowest_card_points)} ${safe(est.lowest_cards.join(' or '))} points</strong><span class="tag est">ESTIMATE</span></div>
+    ${programs}<ul>${cards}</ul>${notes}<p class="pe-source">Values: ${safeLink(est.valuation_url,est.valuation_source)||safe(est.valuation_source)}</p></div>`;
 }
+
+/* ---------- sorting flights and hotels (cash / points) ---------- */
+const lists={flights:{sort:'cash',items:[],isHotel:false},hotels:{sort:'cash',items:[],isHotel:true}};
+let currentQuery=null;
+let currentMode='demo';
+const byCash=(a,b)=>a.total_cash_usd-b.total_cash_usd;
+function sortOffers(items,mode){
+  const copy=[...items];
+  if(mode!=='points')return copy.sort(byCash);
+  // Fewest points regardless of card; offers with no points figure go last.
+  return copy.sort((a,b)=>{
+    const pa=a.points_sort_value,pb=b.points_sort_value;
+    if(pa==null||pb==null)return pa==null&&pb==null?byCash(a,b):pa==null?1:-1;
+    return pa-pb||byCash(a,b);
+  });
+}
+function offerMarks(items){
+  const cheapest=items.length?sortOffers(items,'cash')[0].id:null;
+  const withPoints=items.filter(o=>o.points_sort_value!=null);
+  const fewest=withPoints.length?sortOffers(withPoints,'points')[0].id:null;
+  return id=>({cheapest:id===cheapest,fewestPoints:id===fewest});
+}
+const sortNote=(kind,mode)=>mode==='points'
+  ?`Fewest card points first, whichever card (Chase or Amex) needs fewer. Live points are estimates; ${kind} without a points figure go last.`
+  :'Cheapest cash price first.';
+function renderList(kind,animate){
+  const list=lists[kind];
+  const container=el(kind);
+  for(const button of document.querySelectorAll(`[data-list="${kind}"] [data-sort]`))button.setAttribute('aria-pressed',String(button.dataset.sort===list.sort));
+  el(kind+'SortNote').textContent=list.items.length?sortNote(kind,list.sort):'';
+  if(!list.items.length){container.innerHTML=currentQuery?emptyHtml(kind,currentMode):'';return;}
+  const order=sortOffers(list.items,list.sort);
+  const marks=offerMarks(list.items);
+  const existing=new Map([...container.querySelectorAll('[data-offer-id]')].map(node=>[node.dataset.offerId,node]));
+  if(!animate||existing.size!==order.length||!order.every(o=>existing.has(o.id))){
+    container.innerHTML=order.map((o,i)=>offerHtml(o,i,list.isHotel,currentQuery,marks(o.id))).join('');
+    return;
+  }
+  // FLIP: remember where each card was, move it in the DOM, then animate from old to new position.
+  const before=new Map([...existing].map(([id,node])=>[id,node.getBoundingClientRect().top]));
+  const oldRank=new Map([...existing.keys()].map((id,i)=>[id,i]));
+  order.forEach(o=>container.appendChild(existing.get(o.id)));
+  const reduceMotion=typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+  order.forEach((o,i)=>{
+    const node=existing.get(o.id);
+    node.classList.toggle('offer-best',i===0);
+    const rank=node.querySelector('.rank');if(rank)rank.textContent=`#${i+1}`;
+    node.classList.remove('moved-up','moved-down');
+    const delta=before.get(o.id)-node.getBoundingClientRect().top;
+    if(!delta||reduceMotion)return;
+    node.style.transition='none';
+    node.style.transform=`translateY(${delta}px)`;
+    if(i<oldRank.get(o.id))node.classList.add('moved-up');else if(i>oldRank.get(o.id))node.classList.add('moved-down');
+  });
+  void container.offsetHeight;
+  for(const node of existing.values()){
+    if(!node.style.transform)continue;
+    node.style.transition='transform 500ms cubic-bezier(.2,.8,.2,1)';
+    node.style.transform='';
+    node.addEventListener('transitionend',()=>{node.style.transition='';},{once:true});
+  }
+}
+for(const button of document.querySelectorAll('[data-list] [data-sort]')){
+  button.addEventListener('click',()=>{
+    const kind=button.closest('[data-list]').dataset.list;
+    if(button.dataset.sort===lists[kind].sort)return;
+    lists[kind].sort=button.dataset.sort;
+    renderList(kind,true);
+  });
+}
+
+/* ---------- summary ---------- */
 function sourceBadge(list,mode){
   if(mode==='demo')return '<span class="source-badge demo">Fictional demo</span>';
   return list.length?'<span class="source-badge live">Live listings · unverified</span>':'<span class="source-badge none">No live results</span>';
@@ -163,11 +224,11 @@ function render(data){
     ?'<strong>DEMO MODE</strong> · Every price below is fictional test data and cannot be booked.'
     :'<strong>LIVE MODE</strong> · Search-listing estimates from SerpApi. Not checkout verified; fees may be missing.';
   el('warnings').innerHTML=(data.warnings||[]).map((w,i)=>`<div class="warn">${i===0?'<strong>Important:</strong> ':''}${safe(w)}</div>`).join('');
-  el('summary').innerHTML=summaryHtml(data);
   el('flightCount').innerHTML=`${data.flights.length} result(s) ${sourceBadge(data.flights,mode)}`;
   el('hotelCount').innerHTML=`${data.hotels.length} result(s) ${sourceBadge(data.hotels,mode)}`;
-  el('flights').innerHTML=data.flights.length?data.flights.map((o,i)=>offerHtml(o,i,false,data.query)).join(''):emptyHtml('flights',mode);
-  el('hotels').innerHTML=data.hotels.length?data.hotels.map((o,i)=>offerHtml(o,i,true,data.query)).join(''):emptyHtml('hotels',mode);
+  currentQuery=data.query;currentMode=mode;
+  lists.flights.items=data.flights;lists.hotels.items=data.hotels;
+  renderList('flights',false);renderList('hotels',false);
   const summary=data.summary;
   const hasTrip=typeof summary.modeled_trip_cash_usd==='number';
   const hasKnown=typeof summary.known_trip_cash_usd==='number';
@@ -180,7 +241,9 @@ function render(data){
 }
 function clearResults(){
   el('modeBanner').className='mode-banner';el('modeBanner').innerHTML='';
-  for(const id of ['summary','flights','hotels','recommendations','flightCount','hotelCount'])el(id).innerHTML='';
+  for(const id of ['flights','hotels','recommendations','flightCount','hotelCount'])el(id).innerHTML='';
+  currentQuery=null;lists.flights.items=[];lists.hotels.items=[];
+  el('flightsSortNote').textContent='';el('hotelsSortNote').textContent='';
 }
 async function doSearch(){
   const version=++searchVersion;
