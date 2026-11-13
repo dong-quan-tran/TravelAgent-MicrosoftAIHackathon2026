@@ -3,6 +3,7 @@ const el = id => document.getElementById(id);
 const money = v => typeof v === 'number' && Number.isFinite(v)
   ? new Intl.NumberFormat('en-US', {style:'currency',currency:'USD'}).format(v) : 'Not available';
 const safe = value => String(value ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+let searchVersion = 0;
 const scenarios = {
   nyc: { origin:'DALLAS',destination:'NYC',depart_date:'2027-03-11',return_date:'2027-03-15',travelers:1 },
   tokyo:{origin:'DALLAS',destination:'TOKYO',depart_date:'2027-04-23',return_date:'2027-04-30',travelers:2},
@@ -110,7 +111,7 @@ function offerHtml(offer,index,isHotel,query){
       <dl class="detail-list"><div><dt>Carry-on</dt><dd>${safe(bagStatus(offer.carry_on_included,offer.carry_on_per_traveler_usd,query.carry_on,incomplete))}</dd></div><div><dt>Checked bag</dt><dd>${safe(bagStatus(offer.checked_bag_included,offer.checked_bag_per_traveler_usd,query.checked_bag,incomplete))}</dd></div><div><dt>Fare</dt><dd>${safe(offer.fare_label||'Fare not specified')}</dd></div>${offer.price_basis?`<div><dt>Price basis</dt><dd>${safe(offer.price_basis)}</dd></div>`:''}</dl>`;
   }
   const unknownBox=missing.length?`<div class="unknown-fees"><strong>Unknown, not included:</strong> ${safe(missing.join(', '))}. This is not an all-in price.</div>`:'';
-  const award=offer.points_required > 0?`<div class="award">${offer.award_affordable?'Potential demo redemption':'Not enough entered demo points'}: <strong>${offer.points_required.toLocaleString()} points + ${money(offer.award_fees_usd)}</strong><br>Economic cost at your custom valuation: ${money(offer.award_economic_cost_usd)}</div>`:'';
+  const award=offer.points_required > 0?`<div class="award">${offer.award_affordable?'Points scenario — availability unverified':'Not enough entered points'}: <strong>${offer.points_required.toLocaleString()} points + ${offer.award_price_complete === false?'unknown cash fees':money(offer.award_fees_usd)}</strong><br>Economic cost at your valuation: ${offer.award_price_complete === false?'Unknown':money(offer.award_economic_cost_usd)}</div>`:'';
   const observed=isDemo(offer)?'Synthetic fixture · no live observation':`Observed ${utcTime(offer.observed_utc)}`;
   const link=safeLink(offer.source_url,isHotel?'Listing link':'View search');
   return `<article class="offer ${index===0?'offer-best':''}">
@@ -143,7 +144,7 @@ function summaryHtml(data){
     headline=`${money(known)} <span class="known-tag">known so far</span>`;
     detail=`Not an all-in total. Unknown: ${safe(missing.join(', '))}.`;
   }
-  return `<div class="trip-summary"><div><small>${modeLabel}</small><strong>${headline}</strong><p>${detail}</p></div><div class="summary-note"><small>ILLUSTRATIVE CARD REWARDS</small><strong>${Number(summary.modeled_points_earned_if_cash||0).toLocaleString()} pts</strong><p>At ${safe(query.card_multiplier)} points / $1 on eligible spending; actual card rules vary.</p></div></div>`;
+  return `<div class="trip-summary"><div><small>${modeLabel}</small><strong>${headline}</strong><p>${detail}</p><p>${safe(query.origin)} → ${safe(query.destination)} · ${safe(query.travelers)} traveler(s)</p></div><div class="summary-note"><small>ILLUSTRATIVE CARD REWARDS</small><strong>${Number(summary.modeled_points_earned_if_cash||0).toLocaleString()} pts</strong><p>Assumed ${safe(query.card_multiplier)} points / $1. Estimated value: ${money(Number(summary.modeled_points_earned_if_cash||0)*query.point_value_cents/100)}. This is not a cash discount.</p></div></div>`;
 }
 function sourceBadge(list,mode){
   if(mode==='demo')return '<span class="source-badge demo">Fictional demo</span>';
@@ -168,25 +169,37 @@ function render(data){
   el('flights').innerHTML=data.flights.length?data.flights.map((o,i)=>offerHtml(o,i,false,data.query)).join(''):emptyHtml('flights',mode);
   el('hotels').innerHTML=data.hotels.length?data.hotels.map((o,i)=>offerHtml(o,i,true,data.query)).join(''):emptyHtml('hotels',mode);
   const summary=data.summary;
-  el('recommendations').innerHTML=`<div class="reco-box"><h3>Agent-style recommendations</h3>${summary.recommendations.map(s=>`<p>${safe(s)}</p>`).join('') || '<p>No recommendation available. Improve source coverage and rerun.</p>'}<p><strong>Next step:</strong> Verify every price directly with the airline or hotel before booking. These are not bookable results.</p></div>`;
+  const hasTrip=typeof summary.modeled_trip_cash_usd==='number';
+  const hasKnown=typeof summary.known_trip_cash_usd==='number';
+  const a=summary.comparison_illustrative_award || summary.best_illustrative_award;
+  const savings=a?Number(a.economic_savings_usd):null;
+  const verdict=a?(savings>0?`Points offer better modeled value by ${money(savings)}.`:savings<0?`Cash offers better modeled value by ${money(-savings)}.`:'Cash and points have equal modeled value.'):'No eligible points scenario to compare.';
+  const unavailable=!hasTrip?'A complete trip price is needed before comparing points.':'No affordable points option with complete fee information was returned.';
+  const comparison=`<div class="payment-comparison"><div><small>PAY CASH</small><strong>${hasTrip?money(summary.modeled_trip_cash_usd):hasKnown?money(summary.known_trip_cash_usd):'Not available'}</strong><p>${hasTrip?'Flight + hotel cash outlay':hasKnown?'Known estimate — required fees unknown':'Flight or hotel results missing'}</p></div><div><small>ONE AWARD + CASH · SCENARIO ONLY</small><strong>${a?money(a.trip_cash_outlay_usd):'Not available'}</strong><p>${a?`Plus ${Number(a.points).toLocaleString()} points<br>Value of points used: ${money(Number(a.points)*data.query.point_value_cents/100)}<br>Total economic cost: <b>${money(a.trip_economic_cost_usd)}</b><br>${safe(a.kind)} award: ${safe(a.offer_id)}`:safe(unavailable)}</p></div></div><p><strong>${safe(verdict)}</strong></p>${a?'<p>Economic cost = cash paid + your value of points used. Availability and program eligibility are unverified.</p>':''}`;
+  el('recommendations').innerHTML=`<div class="reco-box"><h3>Your cash-versus-points comparison</h3>${comparison}${summary.recommendations.map(s=>`<p>${safe(s)}</p>`).join('') || '<p>No recommendation available. Try another search.</p>'}<p><strong>Before booking:</strong> Verify exact flights, room conditions, required fees, and award availability with the provider.</p></div>`;
 }
 function clearResults(){
   el('modeBanner').className='mode-banner';el('modeBanner').innerHTML='';
   for(const id of ['summary','flights','hotels','recommendations','flightCount','hotelCount'])el(id).innerHTML='';
 }
 async function doSearch(){
+  const version=++searchVersion;
   const button=el('searchButton');button.disabled=true;
+  el('results').setAttribute('aria-busy','true');
+  clearResults();el('warnings').innerHTML='';
   el('status').textContent='Searching and comparing. Live API calls may take longer…';
   try{
     const response=await fetch('/api/search',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(getRequest())});
     const payload=await response.json();
+    if(version!==searchVersion)return;
     if(!response.ok)throw new Error(payload.error||'Search failed');
     render(payload);
     el('status').textContent=`Search complete • ${payload.query.mode==='demo'?'fictional data':'preliminary live listing estimates'} • prices in USD`;
   }catch(error){
+    if(version!==searchVersion)return;
     el('status').textContent='Error: '+error.message;
     el('warnings').innerHTML='<div class="warn">Check your inputs or live API configuration. See README.md.</div>';
     clearResults();
-  }finally{button.disabled=false;}
+  }finally{if(version===searchVersion){button.disabled=false;el('results').setAttribute('aria-busy','false');}}
 }
 doSearch();

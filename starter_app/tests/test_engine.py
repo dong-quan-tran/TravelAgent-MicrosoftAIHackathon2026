@@ -17,6 +17,86 @@ class EngineTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate({**BASE, "return_date": "garbage"})
 
+    def test_losing_award_remains_available_for_comparison(self):
+        q = validate({**BASE, "point_value_cents": 2})
+        f, h = demo_offers(q)
+        summary = compare(q, f, h)["summary"]
+        self.assertIsNone(summary["best_illustrative_award"])
+        candidate = summary["comparison_illustrative_award"]
+        self.assertIsNotNone(candidate)
+        self.assertLess(candidate["economic_savings_usd"], 0)
+        self.assertGreater(candidate["trip_economic_cost_usd"], summary["modeled_trip_cash_usd"])
+
+    def test_comparison_award_still_respects_balance(self):
+        q = validate({**BASE, "award_points_balance": 0})
+        f, h = demo_offers(q)
+        self.assertIsNone(compare(q, f, h)["summary"]["comparison_illustrative_award"])
+
+    def test_unknown_fees_do_not_produce_complete_trip(self):
+        q = validate(BASE)
+        f, h = demo_offers(q)
+        for offer in f:
+            offer["fees_incomplete"] = True
+        result = compare(q, f, h)
+        self.assertFalse(result["summary"]["price_complete"])
+        self.assertEqual(result["summary"]["known_trip_cash_usd"], 1003)
+        self.assertIsNone(result["summary"]["modeled_trip_cash_usd"])
+        self.assertIsNone(result["summary"]["best_illustrative_award"])
+        self.assertTrue(result["flights"][0]["unknown_fee_categories"])
+        self.assertIn("unknown", result["summary"]["recommendations"][0])
+
+    def test_missing_bag_price_is_unknown_but_included_bag_is_complete(self):
+        q = validate({**BASE, "checked_bag": True})
+        f, _ = demo_offers(q)
+        offer = {**f[0], "checked_bag_included": False, "checked_bag_per_traveler_usd": None}
+        self.assertIn("checked bag fees", price_flight(offer, q)["unknown_fee_categories"])
+        offer["checked_bag_included"] = True
+        self.assertTrue(price_flight(offer, q)["price_complete"])
+
+    def test_missing_hotel_fees_are_not_complete(self):
+        q = validate(BASE)
+        _, h = demo_offers(q)
+        quote = price_hotel({**h[0], "mandatory_fees_usd": None}, q)
+        self.assertFalse(quote["price_complete"])
+        self.assertIn("hotel mandatory fees", quote["unknown_fee_categories"])
+
+    def test_missing_component_has_no_trip_total(self):
+        q = validate(BASE)
+        f, h = demo_offers(q)
+        for flights, hotels in ((f, []), ([], h), ([], [])):
+            result = compare(q, flights, hotels)["summary"]
+            self.assertIsNone(result["known_trip_cash_usd"])
+            self.assertIsNone(result["modeled_trip_cash_usd"])
+            self.assertIsNone(result["best_illustrative_award"])
+
+    def test_award_must_beat_cheapest_cash_not_its_own_price(self):
+        q = validate(BASE)
+        f, h = demo_offers(q)
+        cheap = {**f[0], "base_per_traveler_usd": 100, "mandatory_per_traveler_usd": 0,
+                 "carry_on_included": True, "award_points_per_traveler": 0}
+        expensive = {**cheap, "id": "EXPENSIVE", "base_per_traveler_usd": 1000,
+                     "award_points_per_traveler": 20000, "award_taxes_per_traveler_usd": 20}
+        hotel = {**h[0], "award_points_total": 0}
+        self.assertIsNone(compare(q, [cheap, expensive], [hotel])["summary"]["best_illustrative_award"])
+        expensive["award_points_per_traveler"] = 1000
+        result = compare(q, [cheap, expensive], [hotel])["summary"]
+        award = result["best_illustrative_award"]
+        self.assertEqual(award["economic_savings_usd"], 65)
+        self.assertEqual(award["cash_alternative_usd"], 100)
+        self.assertEqual(award["trip_economic_cost_usd"], result["modeled_trip_cash_usd"] - 65)
+        self.assertTrue(award["scenario_only"])
+
+    def test_missing_award_taxes_and_insufficient_balance_exclude_awards(self):
+        q = validate(BASE)
+        f, h = demo_offers(q)
+        for offer in f:
+            offer["award_taxes_per_traveler_usd"] = None
+        for offer in h:
+            offer["award_taxes_usd"] = None
+        self.assertIsNone(compare(q, f, h)["summary"]["best_illustrative_award"])
+        f, h = demo_offers(q)
+        self.assertIsNone(compare({**q, "award_points_balance": 0}, f, h)["summary"]["best_illustrative_award"])
+
     def test_validate_party_and_rewards(self):
         for bad in (0, 7):
             with self.assertRaises(ValueError):
